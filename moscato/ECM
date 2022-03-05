@@ -1,0 +1,35 @@
+c parameters for PNP equations
+c 
+      parameter (nion=3)
+      parameter (lt=lx1*ly1*lz1*lelt)
+
+      real*8 DiffCoeff(lx1,ly1,lz1,lelt,nion)
+      real c_ini(nion)
+      real charge(nion)
+      real*8 mobility(lx1,ly1,lz1,lelt,nion)
+      real F_const,T_const,R_const
+
+      real migration(lx1,ly1,lz1,lelt,nion)
+      real lapc(lx1,ly1,lz1,lelt,nion)
+
+      real kappae(lx1,ly1,lz1,lelt)
+      real rhs_phie(lx1,ly1,lz1,lelt)
+      real phie(lx1,ly1,lz1,lelt)
+
+      real ionflux(lx1,ly1,lz1,lelt,nion)   ! ion flux in salt
+      real nGradPhie(lx1,ly1,lz1,lelt)
+      real currentDensity(lx1,ly1,lz1,lelt)
+
+      common /ELECTROCHEMICAL/ DiffCoeff,c_ini,
+     & charge,mobility,F_const,T_const,R_const,migration,lapc,
+     & kappae,rhs_phie,phie,ionflux,nGradPhie,currentDensity
+
+      integer ifldpot,ired,ioxi,inertial,anode_faceID,cathode_faceID
+      common /iECM/ ifldpot,ired,ioxi,inertial,
+     & anode_faceID,cathode_faceID
+	  
+C parameters for salazar paper case
+      real V_oc,V_cell,E_anode,E_cathode,E_ca,sk0,sT0,sExa,sSrx,
+     & stheta
+      common /SALAZAR/ V_oc,V_cell,E_anode,E_cathode,
+     & E_ca,sk0,sT0,sExa,sSrx,stheta

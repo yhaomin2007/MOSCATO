@@ -1,0 +1,512 @@
+c inlude moscato code
+      include 'moscato/corrosion.f'
+      include 'moscato/pnp.f'	  
+      include 'moscato/butler_volmer.f'	
+c-----------------------------------------------------------------------
+      subroutine uservp(i,j,k,eg) ! set variable properties
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include "moscato/ECM"
+
+      integer i,j,k,e,eg
+      real tl,rho,nu_visc,mu_visc,Cp,cond
+     
+      e = gllel(eg)
+
+      udiff  = 0.0
+      utrans = 0.0
+      tl = temp
+
+      rho = 1063.0 + 0.546*tl - 0.00147*tl**2.0            ! kg/m3 ! 
+      nu_visc = exp(-4.818 - 1808.0/tl + 5.616e5/tl**2.0)  ! cm2/s
+      nu_visc = nu_visc*1e-4
+      mu_visc = nu_visc*rho
+      Cp = 4187.0
+      cond = 0.6
+
+      if(ifield.eq.1) then
+        udiff = mu_visc            ! mu
+        utrans = rho               ! rho
+      elseif(ifield.eq.2) then
+        udiff = cond               ! kappa
+        utrans = rho*Cp            ! rhoCp
+      elseif(ifield.eq.ifldpot) then   ! potent 
+        udiff = kappae(i,j,k,e) + 1e-8 ! may remove 1e-7 or make it smaller
+        utrans= 1.0
+      else
+        !udiff = DiffCoeff(ifield-2) ! diffusion coefficient for each ions.
+        udiff = DiffCoeff(i,j,k,e,ifield-2)
+        utrans = 1.0
+      endif       
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userf(i,j,k,eg) ! set acceleration term
+c
+c     Note: this is an acceleration term, NOT a force!
+c     Thus, ffx will subsequently be multiplied by rho(x,t).
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer i,j,k,e,eg
+
+c     e = gllel(eg)
+
+      ffx = 0.0
+      ffy = -9.8
+      ffz = 0.0
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userq(i,j,k,eg) ! set source term
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'	  
+      include "moscato/ECM"
+
+      integer i,j,k,e,eg
+
+      e = gllel(eg)
+
+      qvol   = 0.0
+
+      if ((ifield.gt.2).and.(ifield.lt.ifldpot)) then
+      qvol = migration(i,j,k,e,ifield-2) ! migration term for c equation
+      endif    
+
+      if (ifield.eq.ifldpot) then 
+      qvol = rhs_phie(i,j,k,e)  ! for potential eqn rhs
+      endif 
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userbc(i,j,k,f,eg) ! set up boundary conditions
+c     NOTE ::: This routine MAY NOT be called by every process
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+	  
+      include "moscato/ECM"
+
+      integer i,j,k,f,e,eg,idf,iion
+      e = gllel(eg)
+
+c     if (cbc(f,gllel(eg),ifield).eq.'v01')
+
+      ux   = 0.0
+      uy   = 0.0
+      uz   = 0.0
+      temp = 0.0
+      flux = 0.0
+      iion = ifield - 2
+      idf = bc(5,f,e,1)
+      if (ifield.eq.2) then
+      if (idf.eq.anode_faceID)   temp = 360.0  ! left/anode
+      if (idf.eq.cathode_faceID) temp = 300.0  ! right/cathode
+      endif
+
+c      if (ifield.eq.(ioxi+2)) then ! for oxi ion
+c      flux = ionflux(i,j,k,e,ioxi)
+c     & - charge(ioxi)*mobility(i,j,k,e,ioxi)
+c     & *F_const*t(i,j,k,e,ioxi+2)*nGradPhie(i,j,k,e)
+c      endif
+c
+c      if (ifield.eq.(ired+2)) then  ! for red ion
+c     flux = ionflux(i,j,k,e,ired)
+c     & - charge(ired)*mobility(i,j,k,e,ired)
+c     & *F_const*t(i,j,k,e,ired+2)*nGradPhie(i,j,k,e)
+c      endif
+
+c      if ((ifield.gt.2).and.(ifield.lt.ifldpot)) then
+c      flux = ionflux(i,j,k,e,iion)
+c     & - charge(iion)*mobility(i,j,k,e,iion)
+c     & *F_const*t(i,j,k,e,iion+1)*nGradPhie(i,j,k,e)	  
+c      endif
+
+      if (iion.eq.ioxi) then
+	  flux = 0.0	 
+      if ((idf.eq.anode_faceID).or.(idf.eq.cathode_faceID) ) then
+	  flux = ionflux(i,j,k,e,iion)
+     & - charge(iion)*mobility(i,j,k,e,iion)
+     & *F_const*t(i,j,k,e,iion+1)
+     & *currentDensity(i,j,k,e)/kappae(i,j,k,e)
+      endif
+      endif
+	  
+      if (iion.eq.ired) then
+	  flux = 0.0
+      if ((idf.eq.anode_faceID).or.(idf.eq.cathode_faceID) ) then
+	  flux = ionflux(i,j,k,e,iion)
+     & - charge(iion)*mobility(i,j,k,e,iion)
+     & *F_const*t(i,j,k,e,iion+1)
+     & *currentDensity(i,j,k,e)/kappae(i,j,k,e)
+      endif
+      endif
+
+      if (ifield.eq.(ifldpot)) then ! now we have a gradiant bc for phie now.
+      flux = 0.0
+      if ((idf.eq.anode_faceID).or.(idf.eq.cathode_faceID) ) then
+      flux = currentDensity(i,j,k,e)
+      endif
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine useric(i,j,k,eg) ! set up initial conditions
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include "moscato/ECM"
+      integer i,j,k,e,eg
+
+      ux   = 0.0
+      uy   = 0.0
+      uz   = 0.0
+      temp = 330
+
+      if ((ifield.gt.2).and.(ifield.lt.ifldpot)) then
+        temp = c_ini(ifield-2) ! initialization of molar concentration
+      endif    
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userqtl ! Set thermal divergence
+c      tl = temp
+c      rho = 1063.0 + 0.546*tl - 0.00147*tl**2.0            ! kg/m3
+c   low mach for variable temperature
+c   beta = -rho drhodt
+c div(v) = -1/rho * Drho/Dt = -1/rho *(drho/dT)* DT/Dt
+C div(v) = -1/rho * Drho/Dt = -1/(rho*rhoCp)*(drho/dT)* (rhoCp)*DT/Dt
+c 
+c      call userqtl_scig
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'CVODE'
+
+      common /scrns/ w1(lx1,ly1,lz1,lelt)
+     $              ,w2(lx1,ly1,lz1,lelt)
+     $              ,w3(lx1,ly1,lz1,lelt)
+     $              ,tx(lx1,ly1,lz1,lelt)
+     $              ,ty(lx1,ly1,lz1,lelt)
+     $              ,tz(lx1,ly1,lz1,lelt)
+
+      real rho,Cp,drhodT,beta
+
+      nxyz = lx1*ly1*lz1
+      ntot = nxyz*nelv
+
+      ifld_save = ifield
+
+c - - Assemble RHS of T-eqn
+      ifield=2
+
+      call makeuq
+      call copy(qtl,bq,ntot)
+
+      ifield=1     !set right gs handle (QTL is only defined on the velocity mesh)
+      call opgrad  (tx,ty,tz,t)
+      call opdssum (tx,ty,tz)
+      call opcolv  (tx,ty,tz,binvm1)
+      call opcolv  (tx,ty,tz,vdiff(1,1,1,1,2))
+      call opdiv   (w2,tx,ty,tz)
+
+      do i = 1,ntot
+      tl = t(i,1,1,1,1)
+      rho = 1063.0 + 0.546*tl - 0.00147*tl**2.0
+      Cp = 4187.0
+      drhodT = 0.546 - 2.0*0.00147*tl
+      beta = -drhodT/(rho**2.0*Cp)
+      w2(i,1,1,1) = beta*w2(i,1,1,1)
+      enddo
+
+      call add2    (qtl,w2,ntot)
+      call dssum   (qtl,lx1,ly1,lz1)
+      call col2    (qtl,binvm1,ntot)
+
+      ! QTL = T_RHS/(rho*cp**T)
+      call col3    (w2,vtrans(1,1,1,1,2),t,ntot)
+      call invcol2 (qtl,w2,ntot)
+
+      ifield = ifld_save
+
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat   ! This routine to modify element vertices
+      include 'SIZE'
+      include 'TOTAL'
+      include "moscato/ECM"
+ 
+      integer e,f,idf
+
+	  ifldpot = npscal + 2 ! potential is the last PS.
+
+c     Set BCs for auxiliary field
+
+      do e=1,nelv
+      do f=1,2*ldim
+        idf = bc(5,f,e,1)
+        if(idf.eq.1) then  ! bot
+          cbc(f,e,1) = 'W  '
+          cbc(f,e,2) = 'f  '  
+          cbc(f,e,3) = 'f  '  ! Ferri3-
+          cbc(f,e,4) = 'f  '  ! Ferro4-
+          cbc(f,e,5) = 'f  '  ! K+
+          cbc(f,e,6) = 'f  '  ! potential
+        else if (idf.eq.2) then ! right/cathode
+          cbc(f,e,1) = 'W  '
+          cbc(f,e,2) = 't  '
+          cbc(f,e,3) = 'f  '  ! Ferri3-
+          cbc(f,e,4) = 'f  '  ! Ferro4-
+          cbc(f,e,5) = 'f  '  ! K+
+          cbc(f,e,6) = 'f  '  ! potential
+        else if (idf.eq.3) then ! top
+          cbc(f,e,1) = 'W  '
+          cbc(f,e,2) = 'f  '
+          cbc(f,e,3) = 'f  '  ! Ferri3-
+          cbc(f,e,4) = 'f  '  ! Ferro4-
+          cbc(f,e,5) = 'f  '  ! K+
+          cbc(f,e,6) = 'f  '  ! potential
+        else if (idf.eq.4) then ! left/anode
+          cbc(f,e,1) = 'W  '
+          cbc(f,e,2) = 't  '
+          cbc(f,e,3) = 'f  '  ! Ferri3-
+          cbc(f,e,4) = 'f  '  ! Ferro4-
+          cbc(f,e,5) = 'f  '  ! K+
+          cbc(f,e,6) = 'f  '  ! potential
+        endif
+
+      enddo
+      enddo
+
+      anode_faceID = 4
+      cathode_faceID = 2
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat3
+      include 'SIZE'
+      include 'TOTAL'
+
+      ifflow = .false.
+c      ifheat = .false.
+      idpss(1) = -1 ! turn off temperature solver, but keep passive scalar on
+
+c      idpss(2) = -1
+c      idpss(3) = -1
+      idpss(4) = -1  ! turn off inertial ion solver
+c      idpss(5) = -1
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat2
+      include 'SIZE'
+      include 'TOTAL'
+      include "moscato/ECM"
+      include "moscato/ALLOY"
+      integer ips,iion
+      
+	  ntot = lx1*ly1*lz1*nelv
+c-----------------------------------------------
+cc scale geometry
+
+      do i = 1,ntot
+         xm1(i,1,1,1) = xm1(i,1,1,1)*1e-3
+         ym1(i,1,1,1) = ym1(i,1,1,1)*1e-3
+      enddo
+c-----------------------------------------------
+c setting for PNP solver
+
+c farady contant
+      F_const = 96485.33 ! C/mol
+c currently set temperature as constant
+      T_const = 330 ! K
+c universal gas constant
+      R_const = 8.3145	  ! J/mol-K
+ 
+      ifCorK = 1 ! use K as temperature unit
+ 
+c, Ferri3- Ferro4-,  K1+
+c diffusion coeffcient  m2/s
+c at T = 330 k
+c initialize DiffCoeff
+      do i = 1,ntot
+	  DiffCoeff(i,1,1,1,1) = (62.66-0.5336*T_const
+     & +1.1482E-3*T_const**2.0)*1E-10
+      DiffCoeff(i,1,1,1,2) = (62.66-0.5336*T_const
+     & +1.1482E-3*T_const**2.0)*1E-10
+	  DiffCoeff(i,1,1,1,3) = (62.66-0.5336*T_const
+     & +1.1482E-3*T_const**2.0)*1E-10
+      enddo
+
+c initliaze mobility
+      do iion = 1,nion
+        do i = 1,ntot
+      mobility(i,1,1,1,iion) = DiffCoeff(i,1,1,1,iion)
+     & /(R_const*(T_const))
+        enddo
+      enddo
+
+c charge number of each ion species
+      charge(1) = -3
+      charge(2) = -4
+      charge(3) = 1
+
+c initial concentration, make sure electro-neutrality is satisfied.
+      c_ini(1) = 400 
+      c_ini(2) = 400
+      c_ini(3) = 2800
+
+c-----------------------------------------------
+c b-v electrode kinetics
+c initialize ion flux to zero
+      do iion = 1,nion
+      call rzero(ionflux(1,1,1,1,iion),ntot)
+      enddo
+      call rzero(nGradPhie,ntot)
+      call rzero(currentDensity,ntot)
+
+      ioxi = 1   ! Ferri -3, oxidized ion
+      ired = 2   ! Ferro -4, reduced ion
+      inertial = 3 ! K+ , inertial ion
+ 
+      nct = 1.0   ! charge transfer number
+
+      V_cell = 0.0
+      E_anode = -0.05  ! initial value for E_anode 
+      E_ca = 0.0! E_ca = E_cathode - E_anode , this is input you can control
+      E_cathode = E_anode + E_ca
+
+      sk0 = 0.6e-5 ! standard rate constant
+      sT0 = 298.15 ! standard temperature
+      sExa = 14644.0 ! rate constatn activation energy
+      sSrx = -144.728 ! -180.0   ! radox reacion entropy, 144.728 is btained fomr 1.5mv/K thermal-to-voltage converion
+      stheta = 0.5 ! charge transfer coeffcient
+
+      T_anode = 360.0
+      T_cathode = 300.0
+
+c      V_oc = -sSrx*(T_anode-T_cathode)/(nct*F_const)  ! open circuit voltage
+      V_oc =  0.09
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userchk
+      include 'SIZE'
+      include 'TOTAL'
+      include "moscato/ECM"
+
+      integer index_inertial
+      real cavg_usr,Area_usr
+
+      logical ifpnp
+
+      ntot = lx1*ly1*lz1*nelv
+
+c initilization from exsiting velocity-temperatue field
+      if(istep.eq.0) then
+      call gfldr('salazar-moscato0.f00001_fromYimin')
+      do i = 1,ntot
+        do iion = 1,nion
+        t(i,1,1,1,iion+1) = c_ini(iion)  ! initialize c 
+        enddo
+        t(i,1,1,1,nion+2) = 0.0  ! initialize phie
+      enddo
+      endif 
+	  
+c evaluate Dc and mobibility based new temp, correlation for Slazar paper. 
+      do i = 1,ntot
+
+      Tc = t(i,1,1,1,1)
+
+	  DiffCoeff(i,1,1,1,1) = (62.66-0.5336*Tc
+     & +1.1482E-3*Tc**2.0)*1E-10
+      DiffCoeff(i,1,1,1,2) = (62.66-0.5336*Tc
+     & +1.1482E-3*Tc**2.0)*1E-10
+	  DiffCoeff(i,1,1,1,3) = (62.66-0.5336*Tc
+     & +1.1482E-3*Tc**2.0)*1E-10
+
+      do ips = 1,nion
+      mobility(i,1,1,1,ips) = DiffCoeff(i,1,1,1,ips)
+     & /(R_const*Tc)
+      enddo
+
+      enddo
+
+ccc
+c check bulk avg concentration of C and offset to mantain constant ??
+      do ips = 1,nion
+      cavg_usr = glsc2(t(1,1,1,1,ips+1),bm1,ntot)
+      Area_usr = 1.0e-6
+      cavg_usr = cavg_usr/Area_usr
+      if(nid.eq.0) write(6,*) 'cavg for',ips,':',cavg_usr
+      enddo
+ccc
+
+      ifpnp = .TRUE.
+      if (ifpnp) then
+
+c butler-volmer standalone subroutine.
+c determine current density on anode and cathode
+c using definition and coefficient from salazar paper
+      call butler_volmer()
+
+c re-calculate inertial ion to ensure electroneutrality
+      call cal_inertial()
+
+C calculate terms for potential equation
+      call cal_potential_terms()
+
+c calculate potential bc normal gradient based on current density
+      call bc_for_potential_equation()
+	  
+c solve potential eqn using hm solver.
+c this will disable time and convection term.
+      call pnp_poisson_test
+	   
+c calculate migration term for next time step
+      call cal_pnp_migration()
+
+c dump electrochemical data
+      call dump_ecm_data()
+
+CC
+      endif ! if (ifpnp) then
+
+ccccccc
+      varmin = glmin(vx,ntot)
+      varmax = glmax(vx,ntot)
+      if (nid.eq.0) write(6,*) 'vx min/max: ',varmin,'-',varmax
+	  
+      varmin = glmin(vy,ntot)
+      varmax = glmax(vy,ntot)
+      if (nid.eq.0) write(6,*) 'vy min/max: ',varmin,'-',varmax
+
+      varmin = glmin(vz,ntot)
+	  varmax = glmax(vz,ntot)
+      if (nid.eq.0) write(6,*) 'vz min/max: ',varmin,'-',varmax
+	  
+      varmin = glmin(pr,ntot)
+	  varmax = glmax(pr,ntot)
+      if (nid.eq.0) write(6,*) 'pr min/max: ',varmin,'-',varmax
+	  
+      varmin = glmin(t(1,1,1,1,1),ntot)
+	  varmax = glmax(t(1,1,1,1,1),ntot)
+      if (nid.eq.0) write(6,*) 'temp min/max: ',varmin,'-',varmax
+
+      return
+      end
+c-----------------------------------------------------------------------

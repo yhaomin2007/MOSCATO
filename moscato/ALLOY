@@ -1,0 +1,42 @@
+c parameters for alloy
+c only consider the diffusion of Cr in alloy now
+c
+      parameter (ndd=100)                        ! number of decretization nodes in alloy
+      parameter (nfe = 2*ldim)
+
+      real D_oxi_alloy,D_red_alloy               ! diffusion coeffcient of oxi and red element in alloy
+      real c0_oxi_alloy,c0_red_alloy             ! initial concentration of oxi and red element in alloys
+      real L0_alloy,dx_alloy,E_alloy        
+      real E_eq_oxi_0,E_eq_red_0
+      real c_oxi_alloy(ndd,lx1,ly1,nfe,lelt)     ! concentration in alloy, used to solve diffusion equation
+      real c_red_alloy(ndd,lx1,ly1,nfe,lelt)   
+      real flux_oxi(lx1,ly1,nfe,lelt)            ! flux, will be used to map to salt side
+      real flux_red(lx1,ly1,nfe,lelt)
+      real c_oxi_salt(lx1,ly1,nfe,lelt)          ! salt concentration, mapped from salt side
+      real c_red_salt(lx1,ly1,nfe,lelt)
+
+      real pxyz_alloy(3,lx1,ly1,nfe,lelt)        ! alloy surface grid point coordinates
+      real T_salt(lx1,ly1,nfe,lelt)              ! salt surface temperature, mapped from salt side
+      real MCR(lx1,ly1,nfe,lelt)                  ! mass change rate per unit area at surface grid point, it will be unit of g/m2/s
+	  
+      real COAOSS(lx1,ly1,lz1,lelt)              ! c_oxi_alloy_on_salt_surface, to show alloy surface change
+      real CRAOSS(lx1,ly1,lz1,lelt)              ! c_red_alloy_on_salt_surface, to show alloy surface change
+      real MCROSS(lx1,ly1,lz1,lelt)               ! mass change rate _on_salt_surface, to show alloy surface change
+      real nct                                   ! nct is charge transfer number
+      real MM_oxi, MM_red, N_av                  ! molar mass and avogadro constant
+	  
+      integer i_a_dump                 ! i_a_dump is dump file index,
+      integer i_a_read                 ! i_a_read is read file index,
+	                                             
+
+      common /ALLOY/ D_oxi_alloy,D_red_alloy,c0_oxi_alloy,c0_red_alloy,
+     & L0_alloy,dx_alloy,E_alloy,E_eq_oxi_0,E_eq_red_0,
+     & c_oxi_alloy,c_red_alloy,flux_oxi,flux_red,
+     & c_oxi_salt,c_red_salt,pxyz_alloy,T_salt,MCR,
+     & COAOSS,CRAOSS,MCROSS,
+     & nct, MM_oxi, MM_red, N_av,i_a_dump,i_a_read
+	 
+      real alpha_oxi,alpha_red,k0_oxi,k0_red,i0_oxi,i0_red,op_oxi,op_red
+
+      common /ButlerVolmer/ alpha_oxi,alpha_red,k0_oxi,k0_red,
+     & i0_oxi,i0_red,op_oxi,op_red

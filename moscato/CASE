@@ -1,0 +1,11 @@
+      real rho_flibe,mu_flibe
+      real Cp_flibe,kappa_flibe,eps_flibe
+	  
+      common /FLIBE_PROPERTIES/ rho_flibe,mu_flibe,
+     & Cp_flibe,kappa_flibe,eps_flibe
+	 
+      real heat_flux_hot,heat_flux_cold,T0
+      real P_heater,AA_heater,AA_cooler
+      integer ifCorK
+      common /PROBLEM/ heat_flux_hot,heat_flux_cold,T0,
+     &  P_heater,AA_heater,AA_cooler,ifCorK

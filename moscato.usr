@@ -1,0 +1,472 @@
+c inlude moscato plugin
+      include 'moscato/corrosion.f'
+      include 'moscato/pnp.f'
+c-----------------------------------------------------------------------
+      subroutine uservp(i,j,k,eg) ! set variable properties
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include "moscato/ECM"
+      include "moscato/CASE"
+
+      integer i,j,k,e,eg
+     
+      e = gllel(eg)
+
+      udiff  = 0.0
+      utrans = 0.0
+
+      if(ifield.eq.1) then             ! velocity 
+        udiff = mu_flibe
+        utrans = rho_flibe
+      elseif(ifield.eq.2) then         ! temperature
+        udiff = kappa_flibe
+        utrans = rho_flibe*Cp_flibe
+      elseif(ifield.eq.ifldpot) then   ! potent 
+        udiff = kappae(i,j,k,e)+1e-7
+        utrans= 1.0
+      else
+        udiff = DiffCoeff(ifield-2)    ! diffusion coefficient for each ions.
+        utrans = 1.0
+      endif       
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userf(i,j,k,eg) ! set acceleration term
+c
+c     Note: this is an acceleration term, NOT a force!
+c     Thus, ffx will subsequently be multiplied by rho(x,t).
+c
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include "moscato/CASE"
+
+      integer i,j,k,e,eg
+	
+      e = gllel(eg)
+
+      ffx = 0.0
+      ffy = 9.8*eps_flibe*temp   ! use bousinesq approximation
+      ffz = 0.0
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userq(i,j,k,eg) ! set source term
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'	  
+      include "moscato/ECM"
+
+      integer i,j,k,e,eg
+
+      e = gllel(eg)
+
+      qvol   = 0.0
+
+      if ((ifield.gt.2).and.(ifield.lt.ifldpot)) then
+      qvol = migration(i,j,k,e,ifield-2) ! migration term
+      endif    
+ 
+      if (ifield.eq.ifldpot) then 
+      qvol =  rhs_phie(i,j,k,e)  ! for potential eqn RHS
+      endif 
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userbc(i,j,k,f,eg) ! set up boundary conditions
+c     NOTE ::: This routine MAY NOT be called by every process
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+	  
+      include "moscato/ECM"
+      include "moscato/CASE"
+
+      integer i,j,k,f,e,eg,idf
+      e = gllel(eg)
+
+c     if (cbc(f,gllel(eg),ifield).eq.'v01')
+
+      ux   = 0.0
+      uy   = 0.0
+      uz   = 0.0
+      temp = 0.0
+      flux = 0.0
+
+      if (ifield.eq.2) then  ! for temperature
+        idf = bc(5,f,e,1)
+        if (idf.eq.4) then  ! hot wall
+        flux = heat_flux_hot
+        else if (idf.eq.3) then  ! cold wall
+        flux = heat_flux_cold
+        endif
+      endif
+
+      if (ifield.eq.3) flux = ionflux(i,j,k,e,ifield-2) ! for Cr2+
+      if (ifield.eq.4) flux = ionflux(i,j,k,e,ifield-2) ! for Fe2+
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine useric(i,j,k,eg) ! set up initial conditions
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+      include "moscato/ECM"
+      include "moscato/CASE"
+
+      real T_hot,T_cold,deltaT
+      real yy_min,yy_max,xx,yy
+      integer i,j,k,e,eg
+
+      e = gllel(eg)
+
+      ux   = 0.0
+      uy   = 0.0
+      uz   = 0.0
+      temp =  550.0
+
+      if ((ifield.gt.2).and.(ifield.lt.ifldpot)) then
+        temp = c_ini(ifield-2) ! initialization of molar concentration
+      endif
+	  
+      if (ifield.eq.ifldpot) then
+        temp = 0 ! initialization of PhiE
+      endif
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userqtl ! Set thermal divergence
+
+      call userqtl_scig
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat   ! This routine to modify element vertices
+      include 'SIZE'
+      include 'TOTAL'
+      include "moscato/ECM"
+ 
+      integer e,f,idf
+
+      ifldpot = npscal + 2 ! potential is the last PS.
+
+c     Set BCs for auxiliary field
+
+      do e=1,nelv
+      do f=1,2*ldim
+        idf = bc(5,f,e,1)
+        if(idf.eq.3) then  ! cooler
+          cbc(f,e,1) = 'W  '
+          cbc(f,e,2) = 'f  '
+          cbc(f,e,3) = 'f  '  ! Cr2+
+          cbc(f,e,4) = 'f  '  ! Fe2+
+          cbc(f,e,5) = 'f  '  ! Cl-
+          cbc(f,e,6) = 'f  '  ! potential
+        else if (idf.eq.4) then ! heater
+          cbc(f,e,1) = 'W  '
+          cbc(f,e,2) = 'f  '
+          cbc(f,e,3) = 'f  '  ! Cr2+
+          cbc(f,e,4) = 'f  '  ! Fe2+
+          cbc(f,e,5) = 'f  '  ! Cl-
+          cbc(f,e,6) = 'f  '  ! potential
+        else if (idf.eq.5) then ! wall
+          cbc(f,e,1) = 'W  '
+          cbc(f,e,2) = 'f  '
+          cbc(f,e,3) = 'f  '  ! Cr2+
+          cbc(f,e,4) = 'f  '  ! Fe2+
+          cbc(f,e,5) = 'f  '  ! Cl-
+          cbc(f,e,6) = 'f  '  ! potential
+        endif
+
+      enddo
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat3
+      include 'SIZE'
+      include 'TOTAL'
+      include "moscato/ECM"
+      include "moscato/ALLOY"
+      include "moscato/CASE"
+
+      real sint2,sarea2,totalAA,scale
+      integer idf,e,f
+
+      totalAA = 0.0
+      do e=1,nelv
+      do f=1,2*ldim
+        idf = bc(5,f,e,1)
+        if(idf.eq.4) then  !heater
+        sint2 = 0.0
+        sarea2 = 0.0
+        call surface_int(sint2,sarea2,xm1,e,f)
+        totalAA = totalAA + sarea2
+        endif
+      enddo
+      enddo
+
+      totalAA = glsum(totalAA,1)
+      AA_heater =  totalAA
+	  
+      totalAA = 0.0
+      do e=1,nelv
+      do f=1,2*ldim
+        idf = bc(5,f,e,1)
+        if(idf.eq.3) then  ! cooler
+        sint2 = 0.0
+        sarea2 = 0.0
+        call surface_int(sint2,sarea2,xm1,e,f)
+        totalAA = totalAA + sarea2
+        endif
+      enddo
+      enddo
+
+      totalAA = glsum(totalAA,1)
+      AA_cooler =  totalAA
+
+c flibe properties
+      T0 = 513.0 !
+      rho_flibe = 2413.0 - 0.488*(T0+273.15)
+      mu_flibe = (0.116*exp(3755.0/(T0+273.15)))*1.0e-3
+      Cp_flibe = 2386.0
+      kappa_flibe = 1.1
+      eps_flibe = 0.488/rho_flibe
+
+c
+      P_heater = 952 ! W
+      heat_flux_hot = P_heater/AA_heater
+      heat_flux_cold = -1.0*P_heater/AA_cooler
+
+      if(nid.eq.0) then
+       write(6,*)  'T0: ', T0 
+       write(6,*)  'rho_flibe: ', rho_flibe
+       write(6,*)  'mu_flibe: ', mu_flibe 
+       write(6,*)  'Cp_flibe: ', Cp_flibe
+       write(6,*)  'kappa_flibe: ', kappa_flibe
+       write(6,*)  'eps_flibe: ', eps_flibe
+       write(6,*)  'AA_heater: ', AA_heater
+       write(6,*)  'AA_cooler: ', AA_cooler
+       write(6,*)  'heat_flux_hot: ', heat_flux_hot
+       write(6,*)  'heat_flux_cold: ', heat_flux_cold
+      endif
+
+      ifflow = .false.
+c      ifheat = .false.
+      idpss(1) = -1 ! turn off temperature only, but keep passive scalar on
+c      idpss(2) = -1
+c      idpss(3) = -1
+c      idpss(4) = -1
+c      idpss(5) = -1
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat2
+      include 'SIZE'
+      include 'TOTAL'
+      include "moscato/ECM"
+      include "moscato/ALLOY"
+      include "moscato/CASE"
+
+      real sint2,sarea2,totalAA,scale
+      integer idf,e,f
+
+c      integer ips
+      
+	  ntot = lx1*ly1*lz1*nelv
+
+ccc setting for PNP solver	 
+      ifCorK = 0 ! for temperature in C
+      ! ifCorK = 1 ! for temperature in K
+c farady contant
+      F_const = 96485.33 ! C/mol
+c norminal temperature
+      T_const = 650 ! C
+c universal gas constant
+      R_const = 8.3145	  ! J/mol-K
+
+c, Cr2+,Fe2+,Cl-
+c diffusion coeffcient  m2/s
+      DiffCoeff(1) = 1.1e-9
+      DiffCoeff(2) = 1.1e-9
+      DiffCoeff(3) = 2.5e-9
+
+c mobility  mol s/kg 
+      if(ifCorK.eq.0) then
+      mobility(1) = DiffCoeff(1)/(R_const*(T_const+273.15))    ! Nernst-Einstein equation
+      mobility(2) = DiffCoeff(2)/(R_const*(T_const+273.15)) 
+      mobility(3) = DiffCoeff(3)/(R_const*(T_const+273.15)) 
+      else
+      mobility(1) = DiffCoeff(1)/(R_const*T_const)    ! Nernst-Einstein equation
+      mobility(2) = DiffCoeff(2)/(R_const*T_const) 
+      mobility(3) = DiffCoeff(3)/(R_const*T_const) 
+      endif
+
+c charge number
+      charge(1) = 2.0
+      charge(2) = 2.0
+      charge(3) = -1.0
+
+c initial concentration, make sure electro-neutral is met.
+      c_ini(1) = 1.928
+      c_ini(2) = 5.685
+      c_ini(3) = 15.226
+
+ccc setting for corrosion model
+
+c initialize ion flux to zero
+      do iion = 1,nion
+      call rzero(ionflux(1,1,1,1,iion),ntot)
+      enddo
+
+      ired = 2   ! redox ion flag Fe2+ -> Fe
+      ioxi = 1    ! oxi ion flag, Cr -> Cr2+
+
+c parameters for Cr in alloy
+      D_oxi_alloy  = 4.2e-19              ! m2/s, diffusion coeffcient of  Oxi in metal
+      D_red_alloy = 4.2e-19               ! m2/s, diffusion coeffcient of  Red in metal
+
+      c0_oxi_alloy  = 24217               ! mol/m3, bulk concentration of Oxi in metal
+      c0_red_alloy  = 101466              ! mol/m3, bulk concentration of Red in metal
+
+      L0_alloy = 1.0e-7                    ! m, length of the domain to solve diffusion equaiton
+      dx_alloy = L0_alloy/dble(ndd-1)      ! dx in metal diffusion model
+                                           ! ndd is number of division in L0_alloy
+
+      E_eq_oxi_0 = -3.28                   ! V, initial           
+      E_eq_red_0 = -2.92                   ! V, 
+
+      E_alloy = (E_eq_oxi_0 + E_eq_red_0)/2.0  ! alloy electrode, intiail values, this will be updated during run
+  
+      i_a_dump = 0     !dump file index, should be 0
+      nct = 2.0        !charge transfer number, 2 for this case
+
+      MM_oxi =  51.9961   ! molar mass of oxi element, g/mol
+      MM_red =  55.845    ! molar mass of red element, g/mol
+      N_av = 6.022e3      !6.022e23     
+                          ! 1/mol, avogadro constant, howevever scaled by 1e20 here for output
+
+c initialize arrays in alloy
+      do e=1,nelv
+      do f=1,2*ldim
+      do ix=1,lx1
+      do iy=1,ly1
+        do ia = 1,ndd
+         c_oxi_alloy(ia,ix,iy,f,e) = c0_oxi_alloy
+         c_red_alloy(ia,ix,iy,f,e) = c0_red_alloy
+        enddo
+       flux_oxi(ix,iy,f,e) = 0.0
+       flux_red(ix,iy,f,e) = 0.0
+       c_oxi_salt(ix,iy,f,e) = 0.0
+       c_red_salt(ix,iy,f,e) = 0.0
+       pxyz_alloy(1,ix,iy,f,e) = 0.0
+       pxyz_alloy(2,ix,iy,f,e) = 0.0
+       pxyz_alloy(3,ix,iy,f,e) = 0.0
+       T_salt(ix,iy,f,e) = 0.0
+       MCR(ix,iy,f,e) = 0.0
+      enddo
+      enddo
+      enddo
+      enddo
+	  
+      do i = 1,ntot
+        COAOSS(i,1,1,1) = c0_oxi_alloy
+        CRAOSS(i,1,1,1) = c0_red_alloy
+        MCROSS(i,1,1,1) = 0.0
+      enddo	  
+
+	  ! restart from existing alloy profile
+      ! i_a_read = 100
+      !call read_alloy_profile(i_a_read)
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userchk
+      include 'SIZE'
+      include 'TOTAL'
+      include "moscato/ECM"
+      include "moscato/ALLOY"
+      include "moscato/CASE"
+
+      integer index_inertial
+
+      ntot = lx1*ly1*lz1*nelv
+
+c initialize c and phi field 
+c when using developed temperature and velcity fld file
+      if (istep.eq.0) then
+c for c
+        do iion = 1,nion
+          do i = 1,ntot
+          t(i,1,1,1,iion+1) = c_ini(iion) 
+          enddo
+        enddo
+c for Phie
+        do i = 1,ntot
+          t(i,1,1,1,nion+2) = 0.0  
+        enddo
+      endif
+
+c corrosion model
+c 1. determine Oxi and Red ion flux on all wall boundaries based on electrode kenetics
+c 2. calculate mass loss rate baed on flux
+c 3. calcualte Oxi element and Red element diffusion in the metal
+      call corrosion()
+
+c re-calculate inertial ion to ensure electroneutrality
+      index_inertial = 3
+      call cal_inertial(index_inertial) 
+
+C calculate terms for potential equation
+      call cal_potential_terms()
+	  
+c solve potential eqn using hm solver.
+c this will disable time and convection term.
+      call pnp_poisson_test
+	   
+c calculate migration term for concentration equation for next time step
+      call cal_pnp_migration()
+
+c dump electrochemical data
+      call dump_ecm_data()
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine hot_leg_velocity()
+      include 'SIZE'
+      include 'TOTAL'
+	  
+      real vyFlag(lx1,ly1,lz1,lelt),volFlag(lx1,ly1,lz1,lelt)
+      ntot = lx1*ly1*lz1*nelv 
+
+      call rzero(vyFlag,ntot)
+      call rzero(volFlag,ntot)
+	  
+      do i = 1,ntot
+        if (xm1(i,1,1,1).lt.0.025) then
+        vyFlag(i,1,1,1) = vy(i,1,1,1)
+        volFlag(i,1,1,1) = 1.0
+        endif
+      enddo
+	  
+      vyHotLeg = glsc2(vyFlag,bm1,ntot)
+      volHotLeg = glsc2(volFlag,bm1,ntot)
+	  
+      vyHotLeg = vyHotLeg/volHotLeg
+	  
+      if (nid.eq.0) write(6,*) 'vyHotLeg:',vyHotLeg
+
+      return
+      end
+c-----------------------------------------------------------------------

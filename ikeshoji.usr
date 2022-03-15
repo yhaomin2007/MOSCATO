@@ -30,7 +30,7 @@ c-----------------------------------------------------------------------
         utrans = rho               ! rho
       elseif(ifield.eq.2) then
         udiff = cond               ! kappa
-        utrans = rho*Cp            ! rhoCp
+        utrans = rho*Cp/1000.0            ! rhoCp
       elseif(ifield.eq.ifldpot) then   ! potent 
         udiff = kappae(i,j,k,e) + 1e-8 ! may remove 1e-7 or make it smaller
         utrans= 1.0
@@ -57,7 +57,7 @@ c
 c     e = gllel(eg)
 
       ffx = 0.0
-      ffy = -9.8
+      ffy = 0.0  !-9.8
       ffz = 0.0
 
       return
@@ -301,7 +301,7 @@ c-----------------------------------------------------------------------
 
       ifflow = .false.
 c      ifheat = .false.
-      idpss(1) = -1 ! turn off temperature solver, but keep passive scalar on
+c      idpss(1) = -1 ! turn off temperature solver, but keep passive scalar on
 
 c      idpss(2) = -1
 c      idpss(3) = -1
@@ -365,9 +365,9 @@ c charge number of each ion species
       charge(3) = 1
 
 c initial concentration, make sure electro-neutrality is satisfied.
-      c_ini(1) = 400 
-      c_ini(2) = 400
-      c_ini(3) = 2800
+      c_ini(1) = 10
+      c_ini(2) = 10
+      c_ini(3) = 70
 
 c-----------------------------------------------
 c b-v electrode kinetics
@@ -386,7 +386,7 @@ c initialize ion flux to zero
 
       V_cell = 0.0
       E_anode = -0.05  ! initial value for E_anode 
-      E_ca = 0.0! E_ca = E_cathode - E_anode , this is input you can control
+      E_ca = 0.081! E_ca = E_cathode - E_anode , this is input you can control
       E_cathode = E_anode + E_ca
 
       sk0 = 0.6e-5 ! standard rate constant
@@ -395,8 +395,8 @@ c initialize ion flux to zero
       sSrx = -144.728 ! -180.0   ! radox reacion entropy, 144.728 is btained fomr 1.5mv/K thermal-to-voltage converion
       stheta = 0.5 ! charge transfer coeffcient
 
-      T_anode = 360.0
-      T_cathode = 300.0
+      T_anode = 355.55
+      T_cathode = 278.55
 
       V_oc = -sSrx*(T_anode-T_cathode)/(nct*F_const)  ! open circuit voltage
 
@@ -416,27 +416,28 @@ c-----------------------------------------------------------------------
       ntot = lx1*ly1*lz1*nelv
 
 c initilization from exsiting velocity-temperatue field
-      if(istep.eq.0) then
-      call gfldr('salazar-moscato0.f00001_fromYimin')
-      do i = 1,ntot
-        do iion = 1,nion
-        t(i,1,1,1,iion+1) = c_ini(iion)  ! initialize c 
-        enddo
-        t(i,1,1,1,nion+2) = 0.0  ! initialize phie
-      enddo
-      endif 
+c      if(istep.eq.0) then
+c      call gfldr('salazar-moscato0.f00001_fromYimin')
+c      do i = 1,ntot
+c        do iion = 1,nion
+c        t(i,1,1,1,iion+1) = c_ini(iion)  ! initialize c 
+c        enddo
+c        t(i,1,1,1,nion+2) = 0.0  ! initialize phie
+c      enddo
+c      endif 
 	  
 c evaluate Dc and mobibility based new temp, correlation for Slazar paper. 
       do i = 1,ntot
 
       Tc = t(i,1,1,1,1)
 
-	  DiffCoeff(i,1,1,1,1) = (62.66-0.5336*Tc
-     & +1.1482E-3*Tc**2.0)*1E-10
-      DiffCoeff(i,1,1,1,2) = (62.66-0.5336*Tc
-     & +1.1482E-3*Tc**2.0)*1E-10
-	  DiffCoeff(i,1,1,1,3) = (62.66-0.5336*Tc
-     & +1.1482E-3*Tc**2.0)*1E-10
+c for 0.01 M solution
+	  DiffCoeff(i,1,1,1,1) = (75.131-0.6324*Tc
+     & +1.3603E-3*Tc**2.0)*1E-10
+      DiffCoeff(i,1,1,1,2) = (75.131-0.6324*Tc
+     & +1.3603E-3*Tc**2.0)*1E-10
+	  DiffCoeff(i,1,1,1,3) = (75.131-0.6324*Tc
+     & +1.3603E-3*Tc**2.0)*1E-10
 
       do ips = 1,nion
       mobility(i,1,1,1,ips) = DiffCoeff(i,1,1,1,ips)

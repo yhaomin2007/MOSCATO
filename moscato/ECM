@@ -8,6 +8,7 @@ c
       real charge(nion)
       real*8 mobility(lx1,ly1,lz1,lelt,nion)
       real F_const,T_const,R_const
+      real T_anode, T_cathode
 
       real migration(lx1,ly1,lz1,lelt,nion)
       real lapc(lx1,ly1,lz1,lelt,nion)
@@ -21,7 +22,8 @@ c
       real currentDensity(lx1,ly1,lz1,lelt)
 
       common /ELECTROCHEMICAL/ DiffCoeff,c_ini,
-     & charge,mobility,F_const,T_const,R_const,migration,lapc,
+     & charge,mobility,F_const,T_const,T_anode,T_cathode,R_const,
+     & migration,lapc,
      & kappae,rhs_phie,phie,ionflux,nGradPhie,currentDensity
 
       integer ifldpot,ired,ioxi,inertial,anode_faceID,cathode_faceID

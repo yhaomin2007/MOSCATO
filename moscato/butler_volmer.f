@@ -99,7 +99,6 @@ c
 
       real Ea,Eca,totCurrent
       real E_eq,OP,E_eq_a,E_eq_c
-      real T_anode, T_cathode 
       real cr,co,tl
       real sint2,sarea2
       real totCurretAnode,totCurretCathode
@@ -208,10 +207,6 @@ c
 
       anodeLCRO = anodeLCRO/anodeArea
       cathodeLCRO = cathodeLCRO/cathodeArea 
-
-
-      T_anode = 360.0
-      T_cathode = 300.0
 
       E_eq_a = (T_anode-sT0)*sSrx/(nct*F_const)
 !     & - (R_const*T_anode/(nct*F_const))*log(cra/coa) 

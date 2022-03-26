@@ -1,0 +1,16 @@
+#!/bin/bash
+#PBS -N ikeshoji
+#PBS -l select=1:ncpus=32:mpiprocs=32
+#PBS -l walltime=1:0:00
+#PBS -j oe
+#PBS -P neams
+#PBS -o ikeshoji.out
+cd $PBS_O_WORKDIR
+export OMP_NUM_THREADS=1
+echo  ikeshoji > SESSION.NAME
+echo `pwd`'/' >> SESSION.NAME
+rm -rf *.sch
+rm -rf ioinfo
+module purge
+module load mpt
+mpirun ./nek5000 > logfile

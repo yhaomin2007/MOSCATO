@@ -18,8 +18,11 @@ c-----------------------------------------------------------------------
       utrans = 0.0
       tl = temp
 
-      rho = 1063.0 + 0.546*tl - 0.00147*tl**2.0            ! kg/m3 ! 
-      nu_visc = exp(-4.818 - 1808.0/tl + 5.616e5/tl**2.0)  ! cm2/s
+      rho = 870.0 + 1.3305*tl -2.7413e-3*tl**2.0            ! kg/m3 ! 
+      nu_visc = exp(-5.2580 - 1.6428e3/tl + 5.4386e5/tl**2.0)  ! cm2/s
+    
+c      rho = 1063.0 + 0.546*tl - 0.00147*tl**2.0            ! kg/m3 ! 
+c      nu_visc = exp(-4.818 - 1808.0/tl + 5.616e5/tl**2.0)  ! cm2/s
       nu_visc = nu_visc*1e-4
       mu_visc = nu_visc*rho
       Cp = 4187.0
@@ -57,7 +60,7 @@ c
 c     e = gllel(eg)
 
       ffx = 0.0
-      ffy = 0.0  !-9.8
+      ffy = -9.8
       ffz = 0.0
 
       return
@@ -221,9 +224,13 @@ c - - Assemble RHS of T-eqn
 
       do i = 1,ntot
       tl = t(i,1,1,1,1)
-      rho = 1063.0 + 0.546*tl - 0.00147*tl**2.0
+c      rho = 1063.0 + 0.546*tl - 0.00147*tl**2.0
       Cp = 4187.0
-      drhodT = 0.546 - 2.0*0.00147*tl
+c      drhodT = 0.546 - 2.0*0.00147*tl
+
+      rho = 870.0 + 1.3305*tl -2.7413e-3*tl**2.0
+      drhodT = 1.3305 - 2.0*2.7413e-3*tl
+
       beta = -drhodT/(rho**2.0*Cp)
       w2(i,1,1,1) = beta*w2(i,1,1,1)
       enddo
@@ -258,28 +265,28 @@ c     Set BCs for auxiliary field
         idf = bc(5,f,e,1)
         if(idf.eq.1) then  ! bot
           cbc(f,e,1) = 'W  '
-          cbc(f,e,2) = 'f  '  
+          cbc(f,e,2) = 't  '  
           cbc(f,e,3) = 'f  '  ! Ferri3-
           cbc(f,e,4) = 'f  '  ! Ferro4-
           cbc(f,e,5) = 'f  '  ! K+
           cbc(f,e,6) = 'f  '  ! potential
         else if (idf.eq.2) then ! right/cathode
           cbc(f,e,1) = 'W  '
-          cbc(f,e,2) = 't  '
+          cbc(f,e,2) = 'f  '
           cbc(f,e,3) = 'f  '  ! Ferri3-
           cbc(f,e,4) = 'f  '  ! Ferro4-
           cbc(f,e,5) = 'f  '  ! K+
           cbc(f,e,6) = 'f  '  ! potential
         else if (idf.eq.3) then ! top
           cbc(f,e,1) = 'W  '
-          cbc(f,e,2) = 'f  '
+          cbc(f,e,2) = 't  '
           cbc(f,e,3) = 'f  '  ! Ferri3-
           cbc(f,e,4) = 'f  '  ! Ferro4-
           cbc(f,e,5) = 'f  '  ! K+
           cbc(f,e,6) = 'f  '  ! potential
         else if (idf.eq.4) then ! left/anode
           cbc(f,e,1) = 'W  '
-          cbc(f,e,2) = 't  '
+          cbc(f,e,2) = 'f  '
           cbc(f,e,3) = 'f  '  ! Ferri3-
           cbc(f,e,4) = 'f  '  ! Ferro4-
           cbc(f,e,5) = 'f  '  ! K+
@@ -289,8 +296,8 @@ c     Set BCs for auxiliary field
       enddo
       enddo
 
-      anode_faceID = 4
-      cathode_faceID = 2
+      anode_faceID = 3
+      cathode_faceID = 1
 
       return
       end
@@ -386,7 +393,7 @@ c initialize ion flux to zero
 
       V_cell = 0.0
       E_anode = -0.05  ! initial value for E_anode 
-      E_ca = 0.081! E_ca = E_cathode - E_anode , this is input you can control
+      E_ca = 0.0 !0.081! E_ca = E_cathode - E_anode , this is input you can control
       E_cathode = E_anode + E_ca
 
       sk0 = 0.6e-5 ! standard rate constant

@@ -1,0 +1,64 @@
+#
+# nek parameter file
+#
+[GENERAL] 
+startFrom = ikeshoji0.f00006
+stopAt = numSteps
+numSteps = 200000
+dt = 1e-3
+
+timeStepper = bdf2
+writeInterval = 10000
+
+filtering = explicit
+filterModes = 1
+filterWeight = 0.05
+
+targetCFL = 3.0
+extrapolation = OIFS
+
+[PROBLEMTYPE]
+equation = lowMachNS  #incompNS
+variableProperties = yes
+stressFormulation = yes
+
+[PRESSURE]
+#preconditioner = semg_amg_hypre
+residualTol = 1e-04
+residualProj = yes
+
+[velocity]
+density = 1.0
+viscosity = 1e-2
+residualProj = yes
+residualTol = 1.0e-4
+
+[temperature]
+rhoCp = 1.0
+conductivity = 1.0e-3
+residualProj = yes
+residualTol = 1.0e-4
+
+[scalar01] # Ferri3+, oxidized ion
+density = 1.0
+diffusivity = 1.0e-3
+residualProj = no
+residualTol = 1.0e-6
+
+[scalar02] # Ferro4+, reduced ion
+density = 1.0
+diffusivity = 1.0e-3
+residualProj = no
+residualTol = 1.0e-6
+
+[scalar03] # K+, inertial ion
+density = 1.0
+diffusivity = 1.0e-3
+residualProj = no
+residualTol = 1.0e-6
+
+[scalar04] # potential
+density = 1.0
+diffusivity = 1.0e-3
+residualProj = yes
+residualTol = 1.0e-6
